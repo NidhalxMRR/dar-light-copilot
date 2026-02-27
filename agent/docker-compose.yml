@@ -1,0 +1,9 @@
+services:
+  router:
+    image: node:22
+    working_dir: /app
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    command: ["bash","-lc","node src/router.js"]

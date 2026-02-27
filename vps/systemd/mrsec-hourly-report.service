@@ -1,0 +1,8 @@
+[Unit]
+Description=Hourly ops report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mrsec-hourly-report.sh

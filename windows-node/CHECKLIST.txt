@@ -1,0 +1,21 @@
+MR Security / Dar-Light Copilot — Windows Node Host Checklist
+
+1) Start SSH tunnel (keep open):
+   ssh -N -L 28789:127.0.0.1:18789 ubuntu@<VPS_IP>
+
+2) Install node service (admin):
+   openclaw node install --force --host 127.0.0.1 --port 28789 --display-name "mrR-windows-node"
+
+3) Start node:
+   openclaw node restart
+
+4) Verify:
+   openclaw node status --json
+
+5) Start hotkeys:
+   double-click hotkeys.ahk
+
+Hotkeys:
+- Ctrl+Alt+Shift+F12 = STOP
+- Ctrl+Alt+Shift+F11 = TOGGLE
+- Ctrl+Alt+Shift+F10 = STATUS
