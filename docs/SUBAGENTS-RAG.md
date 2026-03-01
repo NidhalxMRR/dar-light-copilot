@@ -8,7 +8,24 @@ Goal: any sub-agent (PM/Dev/SRE/QA/HR/Security) can query the same knowledge bas
 - Encryption key lives only on VPS: `/home/ubuntu/.openclaw/rag/enc_key`.
 
 ## Runtime environment (VPS)
-Source the env file before running any RAG scripts:
+
+### Read-only access (recommended for sub-agents)
+Use the read-only DB user **rag_ro** (no writes). Connect via localhost (VPS) or an SSH tunnel.
+
+Example (VPS):
+```bash
+psql "postgresql://rag_ro:<PASSWORD>@127.0.0.1:5432/rag"
+```
+
+Example (from your PC via SSH tunnel):
+```bash
+ssh -N -L 55432:127.0.0.1:5432 ubuntu@149.202.63.227
+psql "postgresql://rag_ro:<PASSWORD>@127.0.0.1:55432/rag"
+```
+
+### Writer/sync job (VPS only)
+Only the VPS `rag-sync` timer should run write operations (ingest/tag/summarize).
+To run RAG scripts as the writer, source the VPS-only env file:
 
 ```bash
 set -a
