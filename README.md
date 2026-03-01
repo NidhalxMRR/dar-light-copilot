@@ -12,13 +12,30 @@ Internal multi-agent copilot for Dar Blockchain + Lightency.
 - `windows-node/` — Windows node host + global hotkeys + SSH tunnel scripts
 - `vps/` — VPS hardening + monitoring scripts (OpenClaw gateway loopback-only)
 - `agent/` — Telegram router + specialist prompt templates (MVP)
-- `docs/` — architecture, security model, demo script
+- `rag/` — Postgres RAG knowledge base (code + schema only; VPS holds encrypted data)
+- `docs/` — architecture, security model, demo script, RAG notes
 
 ## Quickstart (high level)
 1) VPS: harden + run OpenClaw gateway locally only.
 2) Windows: install OpenClaw CLI + node host service; enable hotkeys.
 3) Agent: run router (Telegram) and route to specialist modes.
+4) RAG: bring up Postgres (VPS localhost) + run sync timer (ingest/tag/summarize).
+
+## Knowledge base (RAG)
+We maintain a single searchable “brain” across Telegram + Control UI sessions.
+
+- Code lives in this repo under `rag/`.
+- Real data lives on the VPS in Postgres, encrypted via `pgcrypto`.
+- Sub-agents should use **read-only** DB credentials (see `docs/SUBAGENTS-RAG.md`).
+- Writer is the VPS `rag-sync` timer.
+
+Docs:
+- `docs/RAG-KNOWLEDGE.md`
+- `docs/SUBAGENTS-RAG.md`
+- `docs/UPDATES-2026-03-01.md`
 
 ## Secrets
 Never commit secrets. Use `.env` files locally.
+- Never paste/commit dashboard `#token=...` URLs.
+- Never commit `OPENCLAW_GATEWAY_TOKEN`.
 
