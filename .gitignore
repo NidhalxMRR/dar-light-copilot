@@ -1,0 +1,14 @@
+# env
+.env
+
+# rag local
+rag/.env
+rag_pgdata/
+
+# logs / exports
+knowledge/logs/
+rag/exports/
+
+# backups
+backups/
+
