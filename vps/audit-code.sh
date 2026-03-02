@@ -27,50 +27,41 @@ scan_rules() {
   local root="$1"
   local findings="$2"
 
-  # Files that should never be included in findings content
+  # Files that should never be included in findings content.
   # We still flag their existence.
-  {
-    find "$root" -maxdepth 6 -type f \( -name ".env" -o -name ".env.*" -o -name "*.pem" -o -name "id_rsa" -o -name "id_ed25519" -o -name "*.p12" -o -name "*.pfx" \) \
-      -printf '{"rule":"SENSITIVE_FILE","file":%q,"line":0}\n' || true
-  } >> "$findings"
+  while IFS= read -r f; do
+    printf '{"rule":"SENSITIVE_FILE","file":%s,"line":0}\n' "$(printf '%s' "$f" | jq -Rs .)" >> "$findings"
+  done < <(
+    find "$root" -maxdepth 6 -type f \( -name ".env" -o -name ".env.*" -o -name "*.pem" -o -name "id_rsa" -o -name "id_ed25519" -o -name "*.p12" -o -name "*.pfx" \) 2>/dev/null || true
+  )
 
   # ripgrep based scans (fast). We only record file + line number.
   # NOTE: patterns are intentionally broad; expect false positives.
   local rg_base=(rg --no-heading --line-number --hidden --glob '!.git/**' --glob '!node_modules/**' --glob '!dist/**' --glob '!build/**' --glob '!target/**' --glob '!vendor/**' --glob '!*.min.js' --glob '!*.map')
 
-  # Common secret-ish patterns
-  "${rg_base[@]}" -S "BEGIN (RSA|EC|OPENSSH) PRIVATE KEY" "$root" 2>/dev/null \
-    | awk -F: '{printf("{\"rule\":\"PRIVATE_KEY_PEM\",\"file\":%s,\"line\":%d}\n", json_escape($1), $2)}' \
-    >> "$findings" || true
+  rg_emit() {
+    local rule="$1"
+    local pattern="$2"
+    # rg output format: file:line:match
+    "${rg_base[@]}" -S "$pattern" "$root" 2>/dev/null \
+      | while IFS=: read -r f ln _rest; do
+          # Quote file path safely; never include match value.
+          printf '{"rule":"%s","file":%s,"line":%s}\n' \
+            "$rule" \
+            "$(printf '%s' "$f" | jq -Rs .)" \
+            "${ln:-0}";
+        done \
+      >> "$findings" || true
+  }
 
-  "${rg_base[@]}" -S "(AKIA|ASIA)[0-9A-Z]{16}" "$root" 2>/dev/null \
-    | awk -F: '{printf("{\"rule\":\"AWS_KEY_ID\",\"file\":%s,\"line\":%d}\n", json_escape($1), $2)}' \
-    >> "$findings" || true
-
-  "${rg_base[@]}" -S "(xox[baprs]-[0-9A-Za-z-]{10,})" "$root" 2>/dev/null \
-    | awk -F: '{printf("{\"rule\":\"SLACK_TOKEN\",\"file\":%s,\"line\":%d}\n", json_escape($1), $2)}' \
-    >> "$findings" || true
-
-  "${rg_base[@]}" -S "(ghp_|github_pat_)[0-9A-Za-z_]{10,}" "$root" 2>/dev/null \
-    | awk -F: '{printf("{\"rule\":\"GITHUB_TOKEN\",\"file\":%s,\"line\":%d}\n", json_escape($1), $2)}' \
-    >> "$findings" || true
-
-  "${rg_base[@]}" -S "(OPENAI|ANTHROPIC|CLAUDE|GEMINI|DEEPSEEK).{0,40}(KEY|TOKEN)" "$root" 2>/dev/null \
-    | awk -F: '{printf("{\"rule\":\"LLM_KEYWORD\",\"file\":%s,\"line\":%d}\n", json_escape($1), $2)}' \
-    >> "$findings" || true
-
-  "${rg_base[@]}" -S "(seed phrase|mnemonic)" "$root" 2>/dev/null \
-    | awk -F: '{printf("{\"rule\":\"MNEMONIC_KEYWORD\",\"file\":%s,\"line\":%d}\n", json_escape($1), $2)}' \
-    >> "$findings" || true
-
-  "${rg_base[@]}" -S "(private_key|secret_key|api[_-]?key|password)\s*[:=]" "$root" 2>/dev/null \
-    | awk -F: '{printf("{\"rule\":\"GENERIC_SECRET_ASSIGN\",\"file\":%s,\"line\":%d}\n", json_escape($1), $2)}' \
-    >> "$findings" || true
+  rg_emit "PRIVATE_KEY_PEM" "BEGIN (RSA|EC|OPENSSH) PRIVATE KEY"
+  rg_emit "AWS_KEY_ID" "(AKIA|ASIA)[0-9A-Z]{16}"
+  rg_emit "SLACK_TOKEN" "(xox[baprs]-[0-9A-Za-z-]{10,})"
+  rg_emit "GITHUB_TOKEN" "(ghp_|github_pat_)[0-9A-Za-z_]{10,}"
+  rg_emit "LLM_KEYWORD" "(OPENAI|ANTHROPIC|CLAUDE|GEMINI|DEEPSEEK).{0,40}(KEY|TOKEN)"
+  rg_emit "MNEMONIC_KEYWORD" "(seed phrase|mnemonic)"
+  rg_emit "GENERIC_SECRET_ASSIGN" "(private_key|secret_key|api[_-]?key|password)\\s*[:=]"
 }
-
-# Small awk helper: JSON-escape a string (best-effort)
-# We inject this into awk via -v and a function definition.
-awk_json='function json_escape(str,    out,i,c){out="\""; for(i=1;i<=length(str);i++){c=substr(str,i,1); if(c=="\\") out=out"\\\\"; else if(c=="\"") out=out"\\\""; else out=out c;} return out"\"" }'
 
 process_one() {
   local zip="$1"
@@ -93,11 +84,6 @@ process_one() {
   : > "$findings"
 
   # Run scans (no secret values logged)
-  awk "$awk_json" </dev/null >/dev/null 2>&1 || true
-  # shellcheck disable=SC2016
-  export AWK_JSON="$awk_json"
-
-  # Use awk with embedded function
   scan_rules "$workdir/src" "$findings"
 
   # Produce report
@@ -129,12 +115,17 @@ process_one() {
     fi
   } > "$report"
 
-  # Write findings to OUT as well
-  if [[ -s "$findings" ]]; then
-    cp "$findings" "$AUDIT_OUT/${run_id}.findings.jsonl"
-  else
-    : > "$AUDIT_OUT/${run_id}.findings.jsonl"
-  fi
+  # Embed findings into the report (single-file output)
+  {
+    echo
+    echo "## Findings details (JSONL, redacted)"
+    echo
+    printf '%s\n' '```jsonl'
+    if [[ -s "$findings" ]]; then
+      cat "$findings"
+    fi
+    printf '%s\n' '```'
+  } >> "$report"
 
   mv "$zip" "$AUDIT_DONE/$(basename "$zip")"
   log "audit: done run_id=$run_id report=$report"
