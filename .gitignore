@@ -12,3 +12,5 @@ rag/exports/
 # backups
 backups/
 
+__pycache__/
+*.pyc
