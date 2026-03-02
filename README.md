@@ -6,6 +6,7 @@ Internal multi-agent copilot for Dar Blockchain + Lightency.
 - Telegram-first interface (low friction)
 - Specialist modes: PM, SRE, Dev, QA, HR, Security
 - Optional on-device assistance via OpenClaw Windows Node host (with kill switches)
+- HR MVP: repetitive desktop task automation (example: Excel → PDF dropbox)
 - Safe-by-default: least privilege, explicit attach, easy stop
 
 ## Contents
@@ -33,6 +34,7 @@ Docs:
 - `docs/RAG-KNOWLEDGE.md`
 - `docs/SUBAGENTS-RAG.md`
 - `docs/UPDATES-2026-03-01.md`
+- `docs/UPDATES-2026-03-02.md` (Windows node HR Excel→PDF MVP + watchdog/dashboard)
 
 ## Secrets
 Never commit secrets. Use `.env` files locally.
