@@ -41,3 +41,6 @@ Never commit secrets. Use `.env` files locally.
 - Never paste/commit dashboard `#token=...` URLs.
 - Never commit `OPENCLAW_GATEWAY_TOKEN`.
 
+
+Docs (security):
+- `docs/CODE-AUDIT.md` (VPS-only redacted code audit dropbox)
