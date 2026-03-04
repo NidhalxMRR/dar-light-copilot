@@ -61,6 +61,29 @@ scan_rules() {
   rg_emit "LLM_KEYWORD" "(OPENAI|ANTHROPIC|CLAUDE|GEMINI|DEEPSEEK).{0,40}(KEY|TOKEN)"
   rg_emit "MNEMONIC_KEYWORD" "(seed phrase|mnemonic)"
   rg_emit "GENERIC_SECRET_ASSIGN" "(private_key|secret_key|api[_-]?key|password)\\s*[:=]"
+
+  # Selenium/UI automation: hardcoded credentials in send_keys()
+  rg_emit "SELENIUM_USERNAME_SENDKEYS" "username_.*\\.send_keys\\(\""
+  rg_emit "SELENIUM_PASSWORD_SENDKEYS" "password_.*\\.send_keys\\(\""
+
+  # Deeper scan: detect-secrets (no secret values are emitted here; we only keep file/line/type).
+  local ds_bin
+  ds_bin="${DETECT_SECRETS_BIN:-$HOME/.local/bin/detect-secrets}"
+  if [[ -x "$ds_bin" ]]; then
+    local ds_json
+    ds_json=$(mktemp)
+    if "$ds_bin" scan --all-files --force-use-all-plugins "$root" >"$ds_json" 2>/dev/null; then
+      jq -r '
+        .results
+        | to_entries[]
+        | .key as $file
+        | .value[]
+        | {rule:("DETECT_SECRETS:" + (.type|tostring)), file:$file, line:(.line_number // 0)}
+        | @json
+      ' "$ds_json" >> "$findings" 2>/dev/null || true
+    fi
+    rm -f "$ds_json"
+  fi
 }
 
 process_one() {
