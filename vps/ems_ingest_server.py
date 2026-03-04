@@ -43,6 +43,23 @@ def fingerprint(evt: dict) -> str:
 
 
 def classify(evt: dict) -> str | None:
+    kind = evt.get("kind")
+    if kind == "ems_text":
+        line = (evt.get("line") or "")
+        # Keyword mapping from your simulator
+        if "Critical High Voltage" in line:
+            return "HIGH_VOLTAGE"
+        if "Under-Voltage" in line or "Under Voltage" in line:
+            return "LOW_VOLTAGE"
+        if "Pressure Drop Detected" in line:
+            return "H2_LEAK"
+        if "Inverter Temperature Critical" in line:
+            return "INVERTER_OVERHEAT"
+        if " ERROR " in line:
+            return "ALARM"
+        return None
+
+    # default: structured JSONL
     payload = evt.get("payload") or {}
     status = payload.get("status")
     anomalies = payload.get("anomalies") or {}
@@ -95,11 +112,16 @@ def handle_client(conn: socket.socket, addr):
                 if now - RL.last_sent < RL.cooldown_s:
                     continue
 
-                payload = evt.get("payload") or {}
-                msg = (
-                    f"[EMS ALERT] site={evt.get('site')} seq={seq} tag={tag} "
-                    f"dc_bus_v={payload.get('dc_bus_v')} inv_temp={payload.get('inverter_temp_c')} h2_bar={payload.get('h2_tank_bar')}"
-                )
+                if evt.get("kind") == "ems_text":
+                    # Keep message short; include the classified tag + raw line (truncated)
+                    raw_line = (evt.get("line") or "").replace("\r", "")
+                    msg = f"[EMS ALERT] site={evt.get('site')} seq={seq} tag={tag} :: {raw_line[:220]}"
+                else:
+                    payload = evt.get("payload") or {}
+                    msg = (
+                        f"[EMS ALERT] site={evt.get('site')} seq={seq} tag={tag} "
+                        f"dc_bus_v={payload.get('dc_bus_v')} inv_temp={payload.get('inverter_temp_c')} h2_bar={payload.get('h2_tank_bar')}"
+                    )
                 send_telegram(msg)
                 RL.last_sent = now
                 RL.last_fingerprint = fp
