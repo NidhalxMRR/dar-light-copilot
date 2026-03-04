@@ -13,7 +13,7 @@ Goal: run sensitive code audits without leaking secrets (e.g., `.env` values) ou
 ## Folders (VPS)
 Root: `/home/ubuntu/.openclaw/audit`
 
-- `in/` — drop `*.zip` here
+- `in/` — drop `*.zip` or `*.xlsx` here
 - `out/` — redacted reports + findings
 - `done/` — processed zips
 - `work/` — temporary extraction dir
@@ -34,7 +34,7 @@ journalctl -u audit-code.service -n 100 --no-pager
 ```
 
 ## Usage
-1) Create a zip of the repo/code you want audited.
+1) Drop a repo zip OR an Excel workbook (XLSX) you want scanned.
 2) Upload it to the VPS:
 
 ```bash

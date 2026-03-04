@@ -64,9 +64,11 @@ scan_rules() {
 }
 
 process_one() {
-  local zip="$1"
+  local input="$1"
   local base
-  base="$(basename "$zip" .zip)"
+  base="$(basename "$input")"
+  base="${base%.zip}"
+  base="${base%.xlsx}"
 
   local run_id
   run_id="$(date -u +"%Y%m%d-%H%M%S")_${base}"
@@ -75,10 +77,10 @@ process_one() {
   rm -rf "$workdir"
   mkdir -p "$workdir/src"
 
-  log "audit: start zip=$zip run_id=$run_id"
+  log "audit: start input=$input run_id=$run_id"
 
-  # unzip safely
-  unzip -q "$zip" -d "$workdir/src"
+  # unzip safely (works for .zip and .xlsx)
+  unzip -q "$input" -d "$workdir/src"
 
   local findings="$workdir/findings.jsonl"
   : > "$findings"
@@ -92,7 +94,7 @@ process_one() {
     echo "# Secure Code Audit Report"
     echo
     echo "- run_id: $run_id"
-    echo "- input: $(basename "$zip")"
+    echo "- input: $(basename "$input")"
     echo "- generated_at_utc: $(now_iso)"
     echo "- status: DONE"
     echo
@@ -133,25 +135,31 @@ process_one() {
   {
     echo "DONE"
     echo "run_id=$run_id"
-    echo "input=$(basename "$zip")"
+    echo "input=$(basename "$input")"
     echo "report=$(basename "$report")"
     echo "generated_at_utc=$(now_iso)"
   } > "$done_marker"
 
-  mv "$zip" "$AUDIT_DONE/$(basename "$zip")"
+  mv "$input" "$AUDIT_DONE/$(basename "$input")"
   log "audit: done run_id=$run_id report=$report done_marker=$done_marker"
 }
 
 main() {
   shopt -s nullglob
-  local zips=("$AUDIT_IN"/*.zip)
-  if (( ${#zips[@]} == 0 )); then
-    log "audit: no input zips"
+  local inputs=("$AUDIT_IN"/*.zip "$AUDIT_IN"/*.xlsx)
+  # remove unmatched globs
+  local files=()
+  for f in "${inputs[@]}"; do
+    [[ -e "$f" ]] && files+=("$f")
+  done
+
+  if (( ${#files[@]} == 0 )); then
+    log "audit: no input files (.zip/.xlsx)"
     return 0
   fi
 
-  for z in "${zips[@]}"; do
-    process_one "$z"
+  for f in "${files[@]}"; do
+    process_one "$f"
   done
 }
 
