@@ -44,3 +44,6 @@ Never commit secrets. Use `.env` files locally.
 
 Docs (security):
 - `docs/CODE-AUDIT.md` (VPS-only redacted code audit dropbox)
+
+Docs (EMS):
+- `docs/EMS-PIPELINE.md` (real-time lossless EMS alerts pipeline)
