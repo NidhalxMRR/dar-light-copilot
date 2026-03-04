@@ -54,3 +54,7 @@ sudo systemctl start audit-code.service
 ## Notes
 - This is a heuristic scan (fast MVP). Add Semgrep/Gitleaks later if needed.
 - Do not commit audit outputs to git.
+
+## Completion marker
+For sync workflows (WinSCP), each run also writes a small completion marker next to the report:
+- `out/<run_id>.done.txt`

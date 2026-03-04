@@ -94,6 +94,7 @@ process_one() {
     echo "- run_id: $run_id"
     echo "- input: $(basename "$zip")"
     echo "- generated_at_utc: $(now_iso)"
+    echo "- status: DONE"
     echo
     echo "## Findings summary"
     echo
@@ -127,8 +128,18 @@ process_one() {
     printf '%s\n' '```'
   } >> "$report"
 
+  # Mark completion (sync-friendly): create a small DONE marker next to the report
+  local done_marker="$AUDIT_OUT/${run_id}.done.txt"
+  {
+    echo "DONE"
+    echo "run_id=$run_id"
+    echo "input=$(basename "$zip")"
+    echo "report=$(basename "$report")"
+    echo "generated_at_utc=$(now_iso)"
+  } > "$done_marker"
+
   mv "$zip" "$AUDIT_DONE/$(basename "$zip")"
-  log "audit: done run_id=$run_id report=$report"
+  log "audit: done run_id=$run_id report=$report done_marker=$done_marker"
 }
 
 main() {
