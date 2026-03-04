@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Example OpenClaw-side listener for the EMS simulator JSONL.
+"""Listener for the EMS simulator.
 
-This is a lightweight tailer that:
-- follows a JSONL file
-- prints alarm events and anomalies
-- can be replaced by an OpenClaw skill/tool later
+Supports:
+- JSONL telemetry (preferred): ems_telemetry.jsonl
+- OpenEMS-like text log: openems_simulation.log
 
-Run:
-  python open_claw_listener.py --file "C:\\Users\\xfive\\Desktop\\ems_sim\\ems_telemetry.jsonl"
+Alerts:
+- JSONL: status==ALARM or anomalies.*==true
+- Text: any line containing " ERROR "
 
-No secret values are printed.
+This script is an example of what an OpenClaw skill would do (tail + detect anomalies).
 """
 
 from __future__ import annotations
@@ -17,12 +17,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import time
 
 
+RE_ERROR = re.compile(r"\sERROR\s")
+
+
 def follow(path: str, sleep_s: float = 0.2):
-    with open(path, "r", encoding="utf-8") as f:
-        # seek to end
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
         f.seek(0, os.SEEK_END)
         while True:
             line = f.readline()
@@ -32,27 +35,41 @@ def follow(path: str, sleep_s: float = 0.2):
             yield line
 
 
+def try_json(line: str):
+    try:
+        return json.loads(line)
+    except Exception:
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--file", required=True)
     args = ap.parse_args()
 
     print(f"Listening: {args.file}")
-    for line in follow(args.file):
-        line = line.strip()
+
+    for raw in follow(args.file):
+        line = raw.strip()
         if not line:
             continue
-        try:
-            evt = json.loads(line)
-        except Exception:
+
+        evt = try_json(line)
+        if isinstance(evt, dict):
+            status = evt.get("status")
+            anomalies = evt.get("anomalies") or {}
+            if status == "ALARM" or any(bool(v) for v in anomalies.values()):
+                on = [k for k, v in anomalies.items() if v]
+                print(
+                    f"[{evt.get('ts')}] ALARM seq={evt.get('seq')} on={on} "
+                    f"dc_bus_v={evt.get('dc_bus_v')} inv_temp={evt.get('inverter_temp_c')} h2_bar={evt.get('h2_tank_bar')}"
+                )
             continue
 
-        status = evt.get("status")
-        anomalies = evt.get("anomalies") or {}
-        if status == "ALARM" or any(bool(v) for v in anomalies.values()):
-            # Redacted: print only keys, not any potential secret values
-            on = [k for k, v in anomalies.items() if v]
-            print(f"[{evt.get('ts')}] ALARM seq={evt.get('seq')} on={on} dc_bus_v={evt.get('dc_bus_v')} inv_temp={evt.get('inverter_temp_c')} h2_bar={evt.get('h2_tank_bar')}")
+        # text log mode
+        if RE_ERROR.search(line):
+            # redacted: we print the line (it is simulated), but in real use you could strip values.
+            print(f"[TEXT] ALERT: {line}")
 
 
 if __name__ == "__main__":
