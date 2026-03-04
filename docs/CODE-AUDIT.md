@@ -13,7 +13,7 @@ Goal: run sensitive code audits without leaking secrets (e.g., `.env` values) ou
 ## Folders (VPS)
 Root: `/home/ubuntu/.openclaw/audit`
 
-- `in/` — drop `*.zip` or `*.xlsx` here
+- `in/` — drop files here (any type). ZIP/XLSX are expanded; single files are scanned in-place; RAR/7z are flagged unsupported in MVP.
 - `out/` — redacted reports + findings
 - `done/` — processed zips
 - `work/` — temporary extraction dir

@@ -79,8 +79,20 @@ process_one() {
 
   log "audit: start input=$input run_id=$run_id"
 
-  # unzip safely (works for .zip and .xlsx)
-  unzip -q "$input" -d "$workdir/src"
+  # Expand containers; otherwise scan the single file.
+  case "${input,,}" in
+    *.zip|*.xlsx)
+      unzip -q "$input" -d "$workdir/src"
+      ;;
+    *.rar|*.7z)
+      # MVP: unsupported archive types (keep safe + predictable)
+      echo "UNSUPPORTED_ARCHIVE: $(basename "$input")" > "$workdir/src/UNSUPPORTED.txt"
+      ;;
+    *)
+      # Single file mode: copy into src/ so scanners work uniformly.
+      cp -f "$input" "$workdir/src/$(basename "$input")"
+      ;;
+  esac
 
   local findings="$workdir/findings.jsonl"
   : > "$findings"
@@ -146,15 +158,12 @@ process_one() {
 
 main() {
   shopt -s nullglob
-  local inputs=("$AUDIT_IN"/*.zip "$AUDIT_IN"/*.xlsx)
-  # remove unmatched globs
-  local files=()
-  for f in "${inputs[@]}"; do
-    [[ -e "$f" ]] && files+=("$f")
-  done
+  # Accept any regular file dropped into IN.
+  # Skip partial transfers like *.filepart.
+  mapfile -t files < <(find "$AUDIT_IN" -maxdepth 1 -type f ! -name '*.filepart' ! -name '*.part' -printf '%p\n' 2>/dev/null | sort)
 
   if (( ${#files[@]} == 0 )); then
-    log "audit: no input files (.zip/.xlsx)"
+    log "audit: no input files"
     return 0
   fi
 
