@@ -401,7 +401,10 @@ EOF
 
     # Run verbose to capture revert
     local out
-    out=$(cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract StatefulRegisterRenewScaffold -vvv 2>&1 | tail -n 120)
+    out=$(cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract StatefulRegisterRenewScaffold -vvv 2>&1 | tail -n 160)
+
+    # Truncate to keep DB insert + Telegram within safe limits
+    out=$(printf "%s" "$out" | tail -n 120)
 
     post_report "$id" "Verbose forge output (tail):\n${out}"
     mark_done "$id"
