@@ -470,11 +470,9 @@ EOF
   fi
 
   if [[ "$title" == ENS\ web/app\ triage*high-EV* ]] || [[ "$title" == ENS\ web/app\ triage* ]] || [[ "$title" == ENS:*web/app*triage* ]]; then
-    # Manual triage using local repos if present; otherwise pull the scope repos.
     local base="/home/ubuntu/.openclaw/workspace/targets"
     mkdir -p "$base"
 
-    # Try to ensure repos exist
     local app_repo="$base/ens-app-v3"
     local meta_repo="$base/ens-metadata-service"
     local landing_repo="$base/ensdomains-landing"
@@ -489,7 +487,6 @@ EOF
       git clone -q https://github.com/ensdomains/ensdomains-landing "$landing_repo" || true
     fi
 
-    # Heuristic: look for wallet tx building + record update flows
     local hits
     hits=$( (rg -n "sendTransaction|eth_sendTransaction|wallet|connector|wagmi|viem|ethers" "$app_repo" 2>/dev/null || true; \
             rg -n "setAddr|setText|setContenthash|setResolver|setOwner" "$app_repo" 2>/dev/null || true) | head -n 60 )
@@ -502,6 +499,40 @@ EOF
     hits3=$( (rg -n "wallet|connect|transaction|web3|ens" "$landing_repo" 2>/dev/null || true) | head -n 25 )
 
     post_report "$id" "Web/App triage quick hits:\n[ens-app-v3]\n${hits}\n\n[ens-metadata-service]\n${hits2}\n\n[ensdomains-landing]\n${hits3}\n\nHypotheses to pursue: (1) state-modifying authenticated action via request tampering; (2) wallet-tx parameter substitution in app flow; (3) metadata HTML injection → wallet interaction/XSS (per scope)."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ web\ exploit\ attempt\ \#1:*wallet*parameter* ]] || [[ "$title" == ENS\ web\ exploit\ attempt\ \#1:* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+
+    local tx_hits
+    tx_hits=$(rg -n "to:\s*|data:\s*|value:\s*|encodeFunctionData|populateTransaction|writeContract|simulateContract" "$app_repo" | head -n 60 || true)
+
+    local storage_hits
+    storage_hits=$(rg -n "localStorage|sessionStorage|querystring|URLSearchParams" "$app_repo" | head -n 40 || true)
+
+    post_report "$id" "Exploit attempt #1 (wallet tx param substitution) starting points:\n[tx-building]\n${tx_hits}\n\n[input sources]\n${storage_hits}\n\nPoC idea: attempt to mutate cached tx params / URL params to substitute contract address or calldata for a state-changing ENS action (records/registration) with minimal user interaction (scope critical)."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ web\ exploit\ attempt\ \#2:*metadata*XSS* ]] || [[ "$title" == ENS\ web\ exploit\ attempt\ \#2:*metadata* ]]; then
+    local meta_repo="/home/ubuntu/.openclaw/workspace/targets/ens-metadata-service"
+    if [[ ! -d "$meta_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-metadata-service "$meta_repo" || true
+    fi
+
+    local render_hits
+    render_hits=$(rg -n "description|name|attributes|image|animation_url" "$meta_repo" | head -n 60 || true)
+
+    local sanitize_hits
+    sanitize_hits=$(rg -n "sanitize|escape|DOMPurify|xss|html" "$meta_repo" | head -n 60 || true)
+
+    post_report "$id" "Exploit attempt #2 (metadata HTML/XSS chain) starting points:\n[metadata fields]\n${render_hits}\n\n[sanitization]\n${sanitize_hits}\n\nPoC idea: find any metadata field that can carry HTML and is rendered unsafely in app.ens.domains (critical if it can trigger malicious tx with already-connected wallet)."
     mark_done "$id"
     return
   fi
