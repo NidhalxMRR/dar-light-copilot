@@ -304,6 +304,30 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ report:*fill\ skeleton* ]] || [[ "$title" == ENS\ report:* ]]; then
+    local proj="/home/ubuntu/.openclaw/workspace/targets/ens-foundry"
+    local out="$proj/IMMUNEFI_REPORT.md"
+    local marker="$proj/POC_CONFIRMED.txt"
+
+    if [[ ! -f "$out" ]]; then
+      mark_blocked "$id" "Report skeleton not found at $out"
+      return
+    fi
+
+    if [[ ! -f "$marker" ]]; then
+      mark_blocked "$id" "No confirmed PoC yet. Create $marker once a failing test demonstrates a real in-scope impact, then requeue this task."
+      return
+    fi
+
+    # If confirmed, append a minimal fill stub; full writeup will be expanded manually.
+    echo "" >> "$out"
+    echo "## Evidence" >> "$out"
+    echo "- PoC confirmed marker: $marker" >> "$out"
+    post_report "$id" "PoC confirmed; report skeleton is ready to be filled at $out"
+    mark_done "$id"
+    return
+  fi
+
   if [[ "$title" == ENS\ web/app\ triage*high-EV* ]] || [[ "$title" == ENS\ web/app\ triage* ]] || [[ "$title" == ENS:*web/app*triage* ]]; then
     # Manual triage using local repos if present; otherwise pull the scope repos.
     local base="/home/ubuntu/.openclaw/workspace/targets"
