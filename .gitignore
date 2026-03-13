@@ -1,5 +1,8 @@
-# env
+# env (never commit secrets)
 .env
+.env.*
+**/.env
+**/.env.*
 
 # rag local
 rag/.env
@@ -8,6 +11,16 @@ rag_pgdata/
 # logs / exports
 knowledge/logs/
 rag/exports/
+
+# targets / PoCs / findings (keep private)
+targets/
+**/targets/
+*.log
+**/*.log
+IMMUNEFI_REPORT.md
+**/IMMUNEFI_REPORT.md
+POC_CONFIRMED.txt
+**/POC_CONFIRMED.txt
 
 # backups
 backups/
