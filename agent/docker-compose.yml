@@ -7,3 +7,14 @@ services:
     env_file:
       - .env
     command: ["bash","-lc","node src/router.js"]
+
+  # Read-only sub-agent poller (logs queue state; extend to Telegram posting later)
+  moltbot2:
+    image: alpine:3.21
+    network_mode: host
+    working_dir: /app
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    command: ["/bin/sh","-lc","/app/moltbot2.sh"]

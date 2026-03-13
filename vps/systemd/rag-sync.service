@@ -1,0 +1,20 @@
+[Unit]
+Description=dar-light-copilot RAG sync (writer)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/.openclaw/workspace/dar-light-copilot
+
+# Writer env lives only on VPS (not in git)
+EnvironmentFile=/home/ubuntu/.openclaw/rag/rag.env
+
+# Run full sync loop (idempotent)
+ExecStart=/home/ubuntu/.openclaw/workspace/dar-light-copilot/.venv/bin/python -m rag.scripts.sync_all
+
+# Keep resource usage polite
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

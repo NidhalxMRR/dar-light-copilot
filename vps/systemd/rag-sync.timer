@@ -1,0 +1,13 @@
+[Unit]
+Description=Run dar-light-copilot RAG sync on a schedule
+
+[Timer]
+# Staggered boot
+OnBootSec=2m
+# Every 2 hours by default (tune as needed)
+OnUnitActiveSec=2h
+AccuracySec=5m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

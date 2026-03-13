@@ -1,0 +1,13 @@
+[Unit]
+Description=dar-light-copilot orchestration writer tick
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/.openclaw/workspace/dar-light-copilot
+ExecStart=/home/ubuntu/.openclaw/workspace/dar-light-copilot/vps/molt-orchestrator-tick.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

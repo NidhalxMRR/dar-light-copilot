@@ -33,6 +33,7 @@ We maintain a single searchable “brain” across Telegram + Control UI session
 Docs:
 - `docs/RAG-KNOWLEDGE.md`
 - `docs/SUBAGENTS-RAG.md`
+- `docs/ORCHESTRATION.md` (agent-to-agent sync via Postgres)
 - `docs/UPDATES-2026-03-01.md`
 - `docs/UPDATES-2026-03-02.md` (Windows node HR Excel→PDF MVP + watchdog/dashboard)
 

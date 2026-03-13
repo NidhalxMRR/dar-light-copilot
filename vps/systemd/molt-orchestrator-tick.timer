@@ -1,0 +1,11 @@
+[Unit]
+Description=Run dar-light-copilot writer tick every 30 minutes
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=30m
+AccuracySec=2m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
