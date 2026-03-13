@@ -681,6 +681,27 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ Web\ PoC\ final:*end-to-end*record\ update* ]] || [[ "$title" == ENS\ Web\ PoC\ final:*tx\ object* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+
+    # Tighten to likely runtime record update implementation.
+    local set_calls
+    set_calls=$(rg -n "functionName:\s*'setText'|functionName:\s*'setAddr'|\.setText\(|\.setAddr\(|setText\(" "$app_repo/src" | head -n 120 || true)
+
+    local write_calls
+    write_calls=$(rg -n "writeContract\(|simulateContract\(" "$app_repo/src" | head -n 120 || true)
+
+    local flow_sources
+    flow_sources=$(rg -n "useSearchParams|URLSearchParams|localStorage|sessionStorage" "$app_repo/src" | head -n 120 || true)
+
+    post_report "$id" "End-to-end trace (static) candidates:\n[setText/setAddr callsites]\n${set_calls}\n\n[write/simulate callsites]\n${write_calls}\n\n[possible tamper sources]\n${flow_sources}\n\nConclusion: need to manually connect one specific UI route to one specific callsite and confirm if any tamper source influences args/address. Current evidence: callsites exist; exploitability not yet confirmed."
+    mark_done "$id"
+    return
+  fi
+
   if [[ "$title" == ENS\ DeepTrace\ \#2:*unsafe\ HTML* ]] || [[ "$title" == ENS\ DeepTrace\ \#2:*beyond* ]]; then
     local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
     if [[ ! -d "$app_repo/.git" ]]; then
