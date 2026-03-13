@@ -722,11 +722,65 @@ EOF
       git clone -q https://github.com/ensdomains/ens-contracts "$repo" || true
     fi
 
-    local readme="$repo/contracts/wrapper/README.md"
     local entry
     entry=$(rg -n "setFuses|unwrap|wrap|setSubnodeOwner|canModify|isApproved" "$repo/contracts/wrapper" | head -n 120 || true)
 
     post_report "$id" "DeepTrace#3 NameWrapper hypothesis pack (draft):\n- H1: privilege check bypass in fuse/unwrap path (look at canModifyName / approval checks)\n- H2: race window between wrap/unwrap and fuse setting causing unintended permanent lock/unlock\n- H3: setSubnodeOwner+wrapper interaction allows unauthorized subdomain control\n\nEntry points (first hits):\n${entry}\n\nPoC outline (best bet = H1): fork mainnet, pick wrapped name, attempt unauthorized fuse/unwrap mutation; assert state change." 
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ Web\ Search\+\+*wagmi/viem*tx-building* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+
+    local hooks
+    hooks=$(rg -n "useWriteContract|useSimulateContract|@wagmi/core|viem/actions|writeContract\(" "$app_repo/src" | head -n 160 || true)
+
+    local abi
+    abi=$(rg -n "abi\s*=|\babi:\s*\[|encodeFunctionData\(" "$app_repo/src" | head -n 160 || true)
+
+    post_report "$id" "Web Search++ results:\n[hooks/tx calls]\n${hooks}\n\n[abi/encoding]\n${abi}\n\nNext: pick the strongest tx-building file and trace arg sources." 
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ SC\ Pivot:*NameWrapper*PoC*skeleton* ]]; then
+    local proj="/home/ubuntu/.openclaw/workspace/targets/ens-foundry"
+    local repo="/home/ubuntu/.openclaw/workspace/targets/ens-contracts"
+    if [[ ! -d "$proj" ]]; then
+      mark_blocked "$id" "Foundry project missing at $proj"
+      return
+    fi
+    if [[ ! -d "$repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-contracts "$repo" || true
+    fi
+
+    local testfile="$proj/test/NameWrapperPocSkeleton.t.sol"
+    cat > "$testfile" <<'EOF'
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.20;
+
+import "forge-std/Test.sol";
+
+interface INameWrapper {
+    function ownerOf(uint256 id) external view returns (address);
+    // TODO: add exact method signatures from ens-contracts for unwrap/setFuses
+}
+
+contract NameWrapperPocSkeleton is Test {
+    address constant NAMEWRAPPER = 0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401;
+
+    function test_placeholder() public {
+        // TODO: choose a known wrapped name id and assert ownership.
+        assertTrue(NAMEWRAPPER != address(0));
+    }
+}
+EOF
+
+    post_report "$id" "Created NameWrapper PoC skeleton at $testfile. Next: import correct interface methods from ens-contracts and build H1 unauthorized fuse/unwrap attempt." 
     mark_done "$id"
     return
   fi
