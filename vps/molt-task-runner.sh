@@ -476,13 +476,17 @@ EOF
 
     # Try to ensure repos exist
     local app_repo="$base/ens-app-v3"
-    local meta_repo="$base/metadata-service"
+    local meta_repo="$base/ens-metadata-service"
+    local landing_repo="$base/ensdomains-landing"
 
     if [[ ! -d "$app_repo/.git" ]]; then
       git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
     fi
     if [[ ! -d "$meta_repo/.git" ]]; then
-      git clone -q https://github.com/ensdomains/metadata-service "$meta_repo" || true
+      git clone -q https://github.com/ensdomains/ens-metadata-service "$meta_repo" || true
+    fi
+    if [[ ! -d "$landing_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ensdomains-landing "$landing_repo" || true
     fi
 
     # Heuristic: look for wallet tx building + record update flows
@@ -494,7 +498,10 @@ EOF
     hits2=$( (rg -n "metadata|image|animation_url|description|name" "$meta_repo" 2>/dev/null || true; \
               rg -n "sanitize|escape|html|script|xss" "$meta_repo" 2>/dev/null || true) | head -n 40 )
 
-    post_report "$id" "Web/App triage quick hits:\n[ens-app-v3]\n${hits}\n\n[metadata-service]\n${hits2}\n\nHypotheses to pursue: (1) state-modifying authenticated action via request tampering; (2) wallet-tx parameter substitution in app flow; (3) metadata HTML injection → wallet interaction/XSS (per scope)."
+    local hits3
+    hits3=$( (rg -n "wallet|connect|transaction|web3|ens" "$landing_repo" 2>/dev/null || true) | head -n 25 )
+
+    post_report "$id" "Web/App triage quick hits:\n[ens-app-v3]\n${hits}\n\n[ens-metadata-service]\n${hits2}\n\n[ensdomains-landing]\n${hits3}\n\nHypotheses to pursue: (1) state-modifying authenticated action via request tampering; (2) wallet-tx parameter substitution in app flow; (3) metadata HTML injection → wallet interaction/XSS (per scope)."
     mark_done "$id"
     return
   fi
