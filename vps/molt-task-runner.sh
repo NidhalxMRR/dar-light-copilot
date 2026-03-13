@@ -401,12 +401,17 @@ EOF
 
     # Run verbose to capture revert
     local out
-    out=$(cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract StatefulRegisterRenewScaffold -vvv 2>&1 | tail -n 160)
+    out=$(cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract StatefulRegisterRenewScaffold -vvv 2>&1 || true)
 
-    # Truncate to keep DB insert + Telegram within safe limits
-    out=$(printf "%s" "$out" | tail -n 120)
+    # Persist full log to file to avoid DB/message size issues
+    local logfile="$proj/debug_task_${id}.log"
+    printf "%s" "$out" > "$logfile"
 
-    post_report "$id" "Verbose forge output (tail):\n${out}"
+    # Extract minimal signal for DB/Telegram
+    local sig
+    sig=$(printf "%s" "$out" | grep -E "\[FAIL:|Backtrace:|at 0x" | head -n 25 | tr '\n' '|' )
+
+    post_report "$id" "Commitment scaffold failure summary: ${sig}\nFull log: $logfile"
     mark_done "$id"
     return
   fi
