@@ -52,7 +52,13 @@ mark_done() {
 mark_blocked() {
   local task_id="$1"; shift
   local reason="$*"
-  psqlq "UPDATE orchestration_task SET status='blocked', debug_notes=CASE WHEN debug_notes='' THEN $$${reason}$$ ELSE debug_notes || E'\n' || $$${reason}$$ END, updated_at=now() WHERE id=${task_id} AND claimed_by='${AGENT_ID}';"
+  local esc
+  esc=${reason//"'"/"''"}
+  psqlq "UPDATE orchestration_task
+        SET status='blocked',
+            debug_notes=CASE WHEN debug_notes='' THEN '${esc}' ELSE debug_notes || E'\\n' || '${esc}' END,
+            updated_at=now()
+        WHERE id=${task_id} AND claimed_by='${AGENT_ID}';" >/dev/null
   post_report "$task_id" "BLOCKED: ${reason}"
 }
 
