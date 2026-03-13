@@ -206,6 +206,19 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ PoC:*locate*registrar*controller*implementation* ]]; then
+    local repo="/home/ubuntu/.openclaw/workspace/targets/ens-contracts"
+    if [[ ! -d "$repo" ]]; then
+      mark_blocked "$id" "ens-contracts repo missing at $repo"
+      return
+    fi
+    local hits
+    hits=$(rg -n "contract .*RegistrarController|contract .*ETHRegistrarController|function register\(|function renew\(" "$repo/contracts" | head -n 80 || true)
+    post_report "$id" "Implementation locate (top hits):\n${hits}\n\nNext: match to deployed address via deployments wiki + interface binding in Foundry test."
+    mark_done "$id"
+    return
+  fi
+
   if [[ "$title" == ENS\ PoC\ attempt*duration/pricing* ]]; then
     post_report "$id" "PoC attempt plan: (a) inspect register/renew duration bounds + overflow/underflow; (b) pricing oracle rounding + premium logic; (c) refund handling. Next: implement failing test cases in ens-foundry." 
     mark_done "$id"
