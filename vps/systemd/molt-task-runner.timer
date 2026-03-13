@@ -1,0 +1,11 @@
+[Unit]
+Description=Run dar-light-copilot task runner periodically
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=2m
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

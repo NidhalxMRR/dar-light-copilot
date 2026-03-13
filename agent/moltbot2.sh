@@ -16,8 +16,29 @@ send() {
     -d disable_web_page_preview=true >/dev/null 2>&1 || true
 }
 
+claim_one() {
+  # Auto-claim exactly one task using the DB function (enforces strict workflow + deps).
+  # Returns claimed task id or empty.
+  psql "$RAG_RO_DATABASE_URL" -At -c "SELECT (orchestration_claim_task('aluma:worker', 600)).id;" 2>/dev/null \
+    | head -n1 \
+    | tr -d '[:space:]' \
+    | grep -E '^[0-9]+$' || true
+}
+
 while true; do
   NOW=$(date -Is)
+
+  # If we're already running something (unexpired lease), don't claim a second task.
+  RUNNING_CNT=$(psql "$RAG_RO_DATABASE_URL" -At -c "SELECT count(*) FROM orchestration_task WHERE status='running' AND claimed_by='aluma:worker' AND lease_expires_at IS NOT NULL AND lease_expires_at >= now();" 2>/dev/null | tr -d '[:space:]' || echo "0")
+
+  CLAIMED_ID=""
+  if [ "${RUNNING_CNT:-0}" = "0" ]; then
+    CLAIMED_ID=$(claim_one)
+    if [ -n "${CLAIMED_ID:-}" ]; then
+      send "[moltbot2] ${NOW}\nclaimed task_id=${CLAIMED_ID} (lease=10m)"
+    fi
+  fi
+
   ROWS=$(psql "$RAG_RO_DATABASE_URL" -At -F "\t" -c "SELECT id, status, priority, owner, claimed_by, lease_expires_at, workflow_id, seq, (CASE WHEN debug_notes<>'' THEN 'YES' ELSE '' END), left(title,70) FROM orchestration_task WHERE status IN ('queued','running','blocked') ORDER BY priority ASC, due_at NULLS LAST, updated_at DESC LIMIT 5;" 2>/dev/null || true)
   FP=$(printf '%s' "$ROWS" | sha256sum | awk '{print $1}')
 

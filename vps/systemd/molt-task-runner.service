@@ -1,0 +1,15 @@
+[Unit]
+Description=dar-light-copilot task runner (claims + executes orchestration tasks)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/.openclaw/workspace/dar-light-copilot
+
+# VPS-only env (do not commit): contains DB URL + Telegram token
+EnvironmentFile=/home/ubuntu/.openclaw/moltbot2.env
+
+ExecStart=/home/ubuntu/.openclaw/workspace/dar-light-copilot/vps/molt-task-runner.sh
+Nice=10
