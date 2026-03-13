@@ -716,6 +716,56 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ Security\ scan:*dependency/CVE*ens-app-v3* ]] || [[ "$title" == ENS\ Security\ scan:*dependency/CVE*ens-metadata-service* ]] || [[ "$title" == ENS\ Security\ scan:*dependency/CVE*ensdomains-landing* ]]; then
+    # Generic npm audit runner for ENS web repos.
+    local base="/home/ubuntu/.openclaw/workspace/targets"
+    mkdir -p "$base"
+
+    local repo_url=""
+    local repo_dir=""
+
+    if [[ "$title" == *"ens-app-v3"* ]]; then
+      repo_url="https://github.com/ensdomains/ens-app-v3"
+      repo_dir="$base/ens-app-v3"
+    elif [[ "$title" == *"ens-metadata-service"* ]]; then
+      repo_url="https://github.com/ensdomains/ens-metadata-service"
+      repo_dir="$base/ens-metadata-service"
+    else
+      repo_url="https://github.com/ensdomains/ensdomains-landing"
+      repo_dir="$base/ensdomains-landing"
+    fi
+
+    if [[ ! -d "$repo_dir/.git" ]]; then
+      git clone -q "$repo_url" "$repo_dir" || true
+    fi
+
+    if ! command -v npm >/dev/null 2>&1; then
+      mark_blocked "$id" "npm not installed on host"
+      return
+    fi
+
+    # install deps (best-effort) then audit
+    local audit_json
+    audit_json=$(cd "$repo_dir" && npm install --silent >/dev/null 2>&1 || true; npm audit --json 2>/dev/null || true)
+
+    if [[ -z "$audit_json" ]]; then
+      mark_blocked "$id" "npm audit returned no output"
+      return
+    fi
+
+    # Summarize counts by severity (npm v7+ structure: metadata.vulnerabilities)
+    local summary
+    summary=$(printf "%s" "$audit_json" | jq -r 'try .metadata.vulnerabilities // empty | to_entries | map("\(.key)=\(.value)") | join(", ")' 2>/dev/null || true)
+
+    # Show top 10 advisory titles if present
+    local top
+    top=$(printf "%s" "$audit_json" | jq -r 'try .vulnerabilities // empty | to_entries[]? | select(.value.severity=="critical" or .value.severity=="high") | "- \(.key): \(.value.severity) via \(.value.via|tostring)"' 2>/dev/null | head -n 10)
+
+    post_report "$id" "Dependency/CVE scan for ${repo_url}:\nSummary: ${summary}\nTop critical/high (first 10):\n${top}\n\nNote: We only pursue findings that map to Immunefi in-scope impact (auth/state-modifying/wallet/XSS/RCE)."
+    mark_done "$id"
+    return
+  fi
+
   if [[ "$title" == ENS\ DeepTrace\ \#3:*NameWrapper*hypothesis* ]]; then
     local repo="/home/ubuntu/.openclaw/workspace/targets/ens-contracts"
     if [[ ! -d "$repo/.git" ]]; then
