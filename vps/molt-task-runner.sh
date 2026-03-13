@@ -539,6 +539,52 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ web\ PoC\ \#1:*trace*tx-building* ]] || [[ "$title" == ENS\ web\ PoC\ \#1:*record\ update* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+
+    # Look for record-setting tx builders
+    local record_hits
+    record_hits=$(rg -n "setAddr\(|setText\(|setContenthash\(|setResolver\(|setOwner\(" "$app_repo" | head -n 80 || true)
+
+    # Look for viem/wagmi writeContract calls near record paths
+    local write_hits
+    write_hits=$(rg -n "writeContract|simulateContract|encodeFunctionData|populateTransaction" "$app_repo" | head -n 80 || true)
+
+    # Identify typical input sources that could be tampered
+    local src_hits
+    src_hits=$(rg -n "localStorage|sessionStorage|URLSearchParams|window\.location|router\.query" "$app_repo" | head -n 60 || true)
+
+    post_report "$id" "Web PoC #1 (record update tx-building) trace hints:\n[record setters]\n${record_hits}\n\n[tx writer calls]\n${write_hits}\n\n[input sources]\n${src_hits}\n\nNext manual step: pick the exact page/component that triggers a record update and trace the variable flow into writeContract({address,args,abi,functionName})."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ web\ PoC\ \#2:*metadata*rendering* ]] || [[ "$title" == ENS\ web\ PoC\ \#2:*HTML/script* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    local meta_repo="/home/ubuntu/.openclaw/workspace/targets/ens-metadata-service"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+    if [[ ! -d "$meta_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-metadata-service "$meta_repo" || true
+    fi
+
+    # Find where metadata endpoints are called in the app
+    local fetch_hits
+    fetch_hits=$(rg -n "metadata\.ens\.domains|ens-metadata|tokenURI|metadata" "$app_repo" | head -n 80 || true)
+
+    # Find any dangerouslySetInnerHTML usage
+    local inner_hits
+    inner_hits=$(rg -n "dangerouslySetInnerHTML|innerHTML" "$app_repo" | head -n 60 || true)
+
+    post_report "$id" "Web PoC #2 (metadata rendering/XSS) trace hints:\n[app metadata fetch]\n${fetch_hits}\n\n[dangerous HTML sinks]\n${inner_hits}\n\nNext manual step: locate the component that renders profile/NFT metadata and confirm whether any field is inserted into DOM unsafely (critical if it can trigger tx with connected wallet)."
+    mark_done "$id"
+    return
+  fi
+
   if [[ "$title" == Install\ Foundry* ]] || [[ "$title" == *Foundry*forge* ]]; then
     # Install Foundry toolchain for PoC work.
     if command -v forge >/dev/null 2>&1; then
