@@ -977,6 +977,77 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ NameWrapper\ PoC\ loop\ v2:*ERC1155*TransferSingle* ]] || [[ "$title" == ENS\ NameWrapper\ PoC\ loop\ v2:* ]]; then
+    local proj="/home/ubuntu/.openclaw/workspace/targets/ens-foundry"
+    if [[ ! -d "$proj" ]]; then
+      mark_blocked "$id" "Foundry project missing at $proj"
+      return
+    fi
+    if [[ -z "${ETH_RPC_URL:-}" ]]; then
+      mark_blocked "$id" "ETH_RPC_URL not set"
+      return
+    fi
+
+    local cast_bin="$HOME/.foundry/bin/cast"
+    if [[ ! -x "$cast_bin" ]]; then
+      mark_blocked "$id" "cast not found at $cast_bin"
+      return
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+      sudo apt-get update -y && sudo apt-get install -y jq
+    fi
+
+    local wrapper="0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401"
+    local latest
+    latest=$($cast_bin block-number --rpc-url "$ETH_RPC_URL")
+    local from=$((latest-50000))
+
+    # ERC1155 TransferSingle signature
+    # TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)
+    local token_id
+    token_id=$($cast_bin logs --rpc-url "$ETH_RPC_URL" --from-block "$from" --to-block "$latest" --address "$wrapper" \
+      --event "TransferSingle(address,address,address,uint256,uint256)" --json 2>/dev/null \
+      | jq -r '.[0].data' 2>/dev/null | head -n 1 || true)
+
+    if [[ -z "$token_id" || "$token_id" == "null" ]]; then
+      mark_blocked "$id" "No TransferSingle events found in last 50k blocks"
+      return
+    fi
+
+    # data encodes (id,value) as 2x32 bytes. Extract id (first 32 bytes)
+    local idhex="0x${token_id:2:64}"
+
+    local testfile="$proj/test/NameWrapperErc1155Probe.t.sol"
+    cat > "$testfile" <<EOF
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.20;
+
+import "forge-std/Test.sol";
+
+interface INameWrapper {
+    function getData(uint256 id) external view returns (address, uint32, uint64);
+}
+
+contract NameWrapperErc1155Probe is Test {
+    address constant NAMEWRAPPER = 0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401;
+    uint256 constant TOKEN_ID = uint256(${idhex});
+
+    function test_getData_smoke() public {
+        (address owner,,) = INameWrapper(NAMEWRAPPER).getData(TOKEN_ID);
+        assertTrue(owner != address(0), "owner should be nonzero");
+    }
+}
+EOF
+
+    if (cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract NameWrapperErc1155Probe -q); then
+      post_report "$id" "ERC1155 probe picked tokenId=${idhex} (from TransferSingle). getData() smoke passed. Next: derive node/id semantics and attempt unauthorized mutation methods." 
+      mark_done "$id"
+    else
+      mark_blocked "$id" "ERC1155 probe forge test failed"
+    fi
+    return
+  fi
+
   if [[ "$title" == Install\ Foundry* ]] || [[ "$title" == *Foundry*forge* ]]; then
     # Install Foundry toolchain for PoC work.
     if command -v forge >/dev/null 2>&1; then
