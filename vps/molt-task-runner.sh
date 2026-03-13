@@ -631,6 +631,47 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ DeepTrace\ \#1:*writeContract*record\ update* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+    local hits
+    hits=$(rg -n "writeContract\(|simulateContract\(|functionName:\s*'set(A|T|C)|setText|setAddr|setContenthash|PublicResolver" "$app_repo/src" | head -n 120 || true)
+    post_report "$id" "DeepTrace#1 runtime record update tx path hits:\n${hits}\n\nNext: trace the hook/function that builds {address,abi,functionName,args} and identify user-controlled sources (URL/storage/api)."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ DeepTrace\ \#2:*unsafe\ HTML* ]] || [[ "$title" == ENS\ DeepTrace\ \#2:*beyond* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+    local sinks
+    sinks=$(rg -n "dangerouslySetInnerHTML|innerHTML|DOMPurify|marked\(|remark|rehype" "$app_repo/src" | head -n 160 || true)
+    local meta_refs
+    meta_refs=$(rg -n "metadata\.ens\.domains|ens-metadata|avatar|header|tokenURI" "$app_repo/src" | head -n 120 || true)
+    post_report "$id" "DeepTrace#2 HTML sinks (runtime src/) + metadata refs:\n[sinks]\n${sinks}\n\n[metadata refs]\n${meta_refs}\n\nNext: find intersection (component that both fetches metadata and renders via a sink)."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ DeepTrace\ \#3:*NameWrapper*hypothesis* ]]; then
+    local repo="/home/ubuntu/.openclaw/workspace/targets/ens-contracts"
+    if [[ ! -d "$repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-contracts "$repo" || true
+    fi
+
+    local readme="$repo/contracts/wrapper/README.md"
+    local entry
+    entry=$(rg -n "setFuses|unwrap|wrap|setSubnodeOwner|canModify|isApproved" "$repo/contracts/wrapper" | head -n 120 || true)
+
+    post_report "$id" "DeepTrace#3 NameWrapper hypothesis pack (draft):\n- H1: privilege check bypass in fuse/unwrap path (look at canModifyName / approval checks)\n- H2: race window between wrap/unwrap and fuse setting causing unintended permanent lock/unlock\n- H3: setSubnodeOwner+wrapper interaction allows unauthorized subdomain control\n\nEntry points (first hits):\n${entry}\n\nPoC outline (best bet = H1): fork mainnet, pick wrapped name, attempt unauthorized fuse/unwrap mutation; assert state change." 
+    mark_done "$id"
+    return
+  fi
+
   if [[ "$title" == Install\ Foundry* ]] || [[ "$title" == *Foundry*forge* ]]; then
     # Install Foundry toolchain for PoC work.
     if command -v forge >/dev/null 2>&1; then
