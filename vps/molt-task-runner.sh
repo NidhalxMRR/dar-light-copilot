@@ -1027,7 +1027,7 @@ EOF
     return
   fi
 
-  if [[ "$title" == ENS\ NameWrapper\ PoC\ loop\ v2:*ERC1155*TransferSingle* ]] || [[ "$title" == ENS\ NameWrapper\ PoC\ loop\ v2:* ]]; then
+  if [[ "$title" == ENS\ NameWrapper\ candidate\ finder\ v3:* ]] || [[ "$title" == ENS\ NameWrapper\ PoC\ loop\ v2:*ERC1155*TransferSingle* ]] || [[ "$title" == ENS\ NameWrapper\ PoC\ loop\ v2:* ]]; then
     local proj="/home/ubuntu/.openclaw/workspace/targets/ens-foundry"
     if [[ ! -d "$proj" ]]; then
       mark_blocked "$id" "Foundry project missing at $proj"
@@ -1050,22 +1050,28 @@ EOF
     local wrapper="0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401"
     local latest
     latest=$($cast_bin block-number --rpc-url "$ETH_RPC_URL")
-    local from=$((latest-50000))
+    local from=$((latest-1000000))
 
-    # ERC1155 TransferSingle signature
-    # TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)
-    local token_id
-    token_id=$($cast_bin logs --rpc-url "$ETH_RPC_URL" --from-block "$from" --to-block "$latest" --address "$wrapper" \
+    # Try TransferSingle first, then TransferBatch
+    local data_hex
+    data_hex=$($cast_bin logs --rpc-url "$ETH_RPC_URL" --from-block "$from" --to-block "$latest" --address "$wrapper" \
       --event "TransferSingle(address,address,address,uint256,uint256)" --json 2>/dev/null \
-      | jq -r '.[0].data' 2>/dev/null | head -n 1 || true)
+      | jq -r '.[0].data // empty' 2>/dev/null | head -n 1 || true)
 
-    if [[ -z "$token_id" || "$token_id" == "null" ]]; then
-      mark_blocked "$id" "No TransferSingle events found in last 50k blocks"
+    if [[ -z "$data_hex" ]]; then
+      data_hex=$($cast_bin logs --rpc-url "$ETH_RPC_URL" --from-block "$from" --to-block "$latest" --address "$wrapper" \
+        --event "TransferBatch(address,address,address,uint256[],uint256[])" --json 2>/dev/null \
+        | jq -r '.[0].data // empty' 2>/dev/null | head -n 1 || true)
+    fi
+
+    if [[ -z "$data_hex" ]]; then
+      mark_blocked "$id" "No ERC1155 TransferSingle/TransferBatch events found in last 1,000,000 blocks"
       return
     fi
 
-    # data encodes (id,value) as 2x32 bytes. Extract id (first 32 bytes)
-    local idhex="0x${token_id:2:64}"
+    # For TransferSingle, data encodes (id,value); for TransferBatch it encodes arrays.
+    # We conservatively parse the first uint256 word of data as candidate token id.
+    local idhex="0x${data_hex:2:64}"
 
     local testfile="$proj/test/NameWrapperErc1155Probe.t.sol"
     cat > "$testfile" <<EOF
