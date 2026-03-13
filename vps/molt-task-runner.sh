@@ -643,6 +643,44 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ Web\ PoC:*trace\ UI*writeContract*setText* ]] || [[ "$title" == ENS\ Web\ PoC:*writeContract*setText* ]] ; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+
+    # Find likely record update UI routes and tx calls
+    local pages
+    pages=$(rg -n "Record|records|resolver|setText|setAddr" "$app_repo/src/pages" | head -n 80 || true)
+
+    local calls
+    calls=$(rg -n "writeContract\(|simulateContract\(|functionName:\s*'setText'|functionName:\s*'setAddr'|setText\(" "$app_repo/src" | head -n 120 || true)
+
+    local addrdata
+    addrdata=$(rg -n "resolverAddressData|PublicResolver" "$app_repo/src" | head -n 80 || true)
+
+    post_report "$id" "UI->writeContract trace hints:\n[pages]\n${pages}\n\n[calls]\n${calls}\n\n[resolverAddressData refs]\n${addrdata}\n\nNext: choose one callsite and trace variable flow into args (name/hash/key/value) and contract address selection."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ Web\ PoC:*attacker-controllable*tx\ args* ]] || [[ "$title" == ENS\ Web\ PoC:*input\ surface*tx\ args* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+
+    local sources
+    sources=$(rg -n "URLSearchParams|window\.location|localStorage|sessionStorage|router\.query|useSearchParams" "$app_repo/src" | head -n 140 || true)
+
+    local txcfg
+    txcfg=$(rg -n "address:\s*deploymentAddresses\.|deploymentAddresses\.|PublicResolver" "$app_repo/src" | head -n 120 || true)
+
+    post_report "$id" "Attacker-controllable input surface scan:\n[sources]\n${sources}\n\n[address selection]\n${txcfg}\n\nCandidate exploit scenario (needs confirmation): attacker crafts link that sets a target name/record key/value or resolver selection via URL/storage, causing app to build a state-changing tx with attacker-chosen parameters when wallet already connected (scope-critical if minimal clicks)."
+    mark_done "$id"
+    return
+  fi
+
   if [[ "$title" == ENS\ DeepTrace\ \#2:*unsafe\ HTML* ]] || [[ "$title" == ENS\ DeepTrace\ \#2:*beyond* ]]; then
     local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
     if [[ ! -d "$app_repo/.git" ]]; then
