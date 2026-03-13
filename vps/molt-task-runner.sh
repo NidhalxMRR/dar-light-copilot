@@ -26,7 +26,9 @@ send_tg() {
 }
 
 psqlq() {
-  psql "$RAG_DB_URL" -v ON_ERROR_STOP=1 -At -F $'\t' -c "$1"
+  local q="$1"
+  # Avoid "argument list too long" by piping SQL over stdin.
+  printf '%s' "$q" | psql "$RAG_DB_URL" -v ON_ERROR_STOP=1 -At -F $'\t'
 }
 
 claim_task_id() {
