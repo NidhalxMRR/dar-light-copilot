@@ -336,10 +336,6 @@ EOF
       return
     fi
 
-    # NOTE: ENS registration is commit-reveal and uses multiple contracts; a full stateful PoC
-    # requires more contract wiring (base registrar, name wrapper, resolver, price oracle).
-    # This task sets up the scaffolding and identifies the exact methods to call.
-
     local testfile="$proj/test/StatefulRegisterRenewScaffold.t.sol"
     cat > "$testfile" <<'EOF'
 // SPDX-License-Identifier: UNLICENSED
@@ -365,9 +361,7 @@ interface IETHRegistrarController {
 contract StatefulRegisterRenewScaffold is Test {
     address constant CONTROLLER = 0x59E16fcCd424Cc24e280Be16E11Bcd56fb0CE547;
 
-    function test_commitment_does_not_revert() public {
-        // Just scaffolding: prove we can compute a commitment and call commit on fork.
-        // A full PoC will require dealing with minCommitmentAge and timestamp warps.
+    function test_commitment_commit() public {
         bytes32 secret = keccak256("secret");
         bytes[] memory data = new bytes[](0);
         bytes32 c = IETHRegistrarController(CONTROLLER).makeCommitment(
@@ -380,19 +374,37 @@ contract StatefulRegisterRenewScaffold is Test {
             false,
             0
         );
-
-        // commit is state-changing; on fork this should succeed if no special permissions are required.
         IETHRegistrarController(CONTROLLER).commit(c);
     }
 }
 EOF
 
     if (cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract StatefulRegisterRenewScaffold -q); then
-      post_report "$id" "Stateful scaffold ran OK. File: $testfile. Next: implement full register flow (commit->wait->register) and renew flow with correct contracts + price oracle."
+      post_report "$id" "Stateful scaffold ran OK. File: $testfile. Next: implement full register flow (commit->wait->register) and renew flow."
       mark_done "$id"
     else
-      mark_blocked "$id" "Stateful scaffold failed (commitment/commit). Need to inspect revert reason; may be fork block / chain state."
+      mark_blocked "$id" "Stateful scaffold failed (commit). Queue debug task to capture revert."
     fi
+    return
+  fi
+
+  if [[ "$title" == ENS\ PoC\ debug:*revert*commit*scaffold* ]]; then
+    local proj="/home/ubuntu/.openclaw/workspace/targets/ens-foundry"
+    if [[ ! -d "$proj" ]]; then
+      mark_blocked "$id" "Foundry project missing at $proj"
+      return
+    fi
+    if [[ -z "${ETH_RPC_URL:-}" ]]; then
+      mark_blocked "$id" "ETH_RPC_URL not set"
+      return
+    fi
+
+    # Run verbose to capture revert
+    local out
+    out=$(cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract StatefulRegisterRenewScaffold -vvv 2>&1 | tail -n 120)
+
+    post_report "$id" "Verbose forge output (tail):\n${out}"
+    mark_done "$id"
     return
   fi
 
