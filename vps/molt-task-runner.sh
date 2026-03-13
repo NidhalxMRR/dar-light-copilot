@@ -572,15 +572,61 @@ EOF
       git clone -q https://github.com/ensdomains/ens-metadata-service "$meta_repo" || true
     fi
 
-    # Find where metadata endpoints are called in the app
     local fetch_hits
     fetch_hits=$(rg -n "metadata\.ens\.domains|ens-metadata|tokenURI|metadata" "$app_repo" | head -n 80 || true)
 
-    # Find any dangerouslySetInnerHTML usage
     local inner_hits
     inner_hits=$(rg -n "dangerouslySetInnerHTML|innerHTML" "$app_repo" | head -n 60 || true)
 
     post_report "$id" "Web PoC #2 (metadata rendering/XSS) trace hints:\n[app metadata fetch]\n${fetch_hits}\n\n[dangerous HTML sinks]\n${inner_hits}\n\nNext manual step: locate the component that renders profile/NFT metadata and confirm whether any field is inserted into DOM unsafely (critical if it can trigger tx with connected wallet)."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ simulate\ \#1*tx-building* ]] || [[ "$title" == ENS\ simulate\ \#1*localStorage* ]] ; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+
+    local tx_hits
+    tx_hits=$(rg -n "writeContract\(|sendTransaction\(|encodeFunctionData|simulateContract" "$app_repo" | head -n 120 || true)
+
+    local src_hits
+    src_hits=$(rg -n "localStorage|sessionStorage|URLSearchParams|window\.location" "$app_repo" | head -n 120 || true)
+
+    post_report "$id" "Sim#1 tx-building + input control scan:\n[tx-building]\n${tx_hits}\n\n[input sources]\n${src_hits}\n\nNext: pick one record-update route and trace flow from URL/storage -> args -> writeContract."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ simulate\ \#2*DOM\ sink* ]] || [[ "$title" == ENS\ simulate\ \#2*metadata* ]]; then
+    local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+
+    local sinks
+    sinks=$(rg -n "dangerouslySetInnerHTML|innerHTML|DOMPurify|marked\(|remark|rehype" "$app_repo" | head -n 120 || true)
+
+    local meta_fetch
+    meta_fetch=$(rg -n "metadata\.ens\.domains|tokenURI|avatar|header|image" "$app_repo" | head -n 120 || true)
+
+    post_report "$id" "Sim#2 metadata DOM-sink audit:\n[sinks]\n${sinks}\n\n[metadata fetch]\n${meta_fetch}\n\nNext: verify whether any metadata field is rendered through a sink without sanitization."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ simulate\ \#3*NameWrapper* ]] || [[ "$title" == ENS\ simulate\ \#3* ]] ; then
+    local repo="/home/ubuntu/.openclaw/workspace/targets/ens-contracts"
+    if [[ ! -d "$repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-contracts "$repo" || true
+    fi
+
+    local wrapper_hits
+    wrapper_hits=$(rg -n "contract NameWrapper|function wrap\(|function unwrap\(|setFuses|setSubnodeOwner" "$repo/contracts" | head -n 120 || true)
+
+    post_report "$id" "Sim#3 NameWrapper entrypoints (starting points):\n${wrapper_hits}\n\nNext: pick 3 hypotheses around permission checks + fuse race and outline a Foundry PoC." 
     mark_done "$id"
     return
   fi
