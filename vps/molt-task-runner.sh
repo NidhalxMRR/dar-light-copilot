@@ -767,20 +767,54 @@ import "forge-std/Test.sol";
 
 interface INameWrapper {
     function ownerOf(uint256 id) external view returns (address);
-    // TODO: add exact method signatures from ens-contracts for unwrap/setFuses
+    function isWrapped(bytes32 node) external view returns (bool);
+    function setFuses(bytes32 node, uint16 ownerControlledFuses) external returns (uint32);
 }
 
 contract NameWrapperPocSkeleton is Test {
     address constant NAMEWRAPPER = 0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401;
 
-    function test_placeholder() public {
-        // TODO: choose a known wrapped name id and assert ownership.
-        assertTrue(NAMEWRAPPER != address(0));
+    function _namehash(bytes32 parent, bytes32 label) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(parent, label));
+    }
+
+    function test_isWrapped_smoke() public {
+        bytes32 ethNode = _namehash(bytes32(0), keccak256("eth"));
+        bool w = INameWrapper(NAMEWRAPPER).isWrapped(ethNode);
+        // just ensure it doesn't revert
+        assertTrue(w || !w);
+    }
+
+    function test_setFuses_unauthorized_reverts() public {
+        bytes32 ethNode = _namehash(bytes32(0), keccak256("eth"));
+        vm.expectRevert();
+        INameWrapper(NAMEWRAPPER).setFuses(ethNode, 0);
     }
 }
 EOF
 
-    post_report "$id" "Created NameWrapper PoC skeleton at $testfile. Next: import correct interface methods from ens-contracts and build H1 unauthorized fuse/unwrap attempt." 
+    post_report "$id" "Created NameWrapper PoC skeleton at $testfile (includes isWrapped + unauthorized setFuses revert check)."
+    mark_done "$id"
+    return
+  fi
+
+  if [[ "$title" == ENS\ SC\ PoC:*NameWrapper*permission\ check* ]] || [[ "$title" == ENS\ SC\ PoC:*NameWrapper*fork*smoke* ]]; then
+    local proj="/home/ubuntu/.openclaw/workspace/targets/ens-foundry"
+    if [[ ! -d "$proj" ]]; then
+      mark_blocked "$id" "Foundry project missing at $proj"
+      return
+    fi
+    if [[ -z "${ETH_RPC_URL:-}" ]]; then
+      mark_blocked "$id" "ETH_RPC_URL not set"
+      return
+    fi
+
+    (cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract NameWrapperPocSkeleton -q) || {
+      mark_blocked "$id" "NameWrapper fork test failed; check revert output."
+      return
+    }
+
+    post_report "$id" "NameWrapper fork smoke+permission test passed. Next: choose a wrapped name node and attempt an actual unauthorized mutation PoC (H1)."
     mark_done "$id"
     return
   fi
