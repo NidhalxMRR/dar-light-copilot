@@ -835,20 +835,23 @@ EOF
       mark_blocked "$id" "cast not found at $cast_bin"
       return
     fi
+    if ! command -v jq >/dev/null 2>&1; then
+      sudo apt-get update -y && sudo apt-get install -y jq
+    fi
 
     local wrapper="0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401"
 
     local latest
     latest=$($cast_bin block-number --rpc-url "$ETH_RPC_URL")
-    local from=$((latest-20000))
+    local from=$((latest-200000))
 
-    # Pull a few NameWrapped events, take first node
+    # Pull NameWrapped events as JSON and extract indexed node (topic1)
     local node
-    node=$($cast_bin logs --rpc-url "$ETH_RPC_URL" --from-block "$from" --to-block "$latest" --address "$wrapper" --event "NameWrapped(bytes32,bytes,address,uint32,uint64)" 2>/dev/null \
-      | grep -Eo '0x[a-fA-F0-9]{64}' | head -n 1 || true)
+    node=$($cast_bin logs --rpc-url "$ETH_RPC_URL" --from-block "$from" --to-block "$latest" --address "$wrapper" --event "NameWrapped(bytes32,bytes,address,uint32,uint64)" --json 2>/dev/null \
+      | jq -r '.[0].topics[1] // empty' 2>/dev/null | head -n 1 || true)
 
-    if [[ -z "$node" ]]; then
-      mark_blocked "$id" "No NameWrapped events found in last 20k blocks"
+    if [[ -z "$node" || "$node" == "null" ]]; then
+      mark_blocked "$id" "No NameWrapped events found in last 200k blocks"
       return
     fi
 
