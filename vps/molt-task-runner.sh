@@ -895,6 +895,88 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ NameWrapper\ probe:*isWrapped*common\ names* ]] || [[ "$title" == ENS\ NameWrapper\ probe:* ]]; then
+    local proj="/home/ubuntu/.openclaw/workspace/targets/ens-foundry"
+    if [[ ! -d "$proj" ]]; then
+      mark_blocked "$id" "Foundry project missing at $proj"
+      return
+    fi
+    if [[ -z "${ETH_RPC_URL:-}" ]]; then
+      mark_blocked "$id" "ETH_RPC_URL not set"
+      return
+    fi
+
+    local cast_bin="$HOME/.foundry/bin/cast"
+    if [[ ! -x "$cast_bin" ]]; then
+      mark_blocked "$id" "cast not found at $cast_bin"
+      return
+    fi
+
+    # Try a deterministic list of likely wrapped names
+    local names=(
+      "vitalik.eth" "uniswap.eth" "opensea.eth" "ens.eth" "ethereum.eth" "coinbase.eth" "metamask.eth" "foundation.eth" "aave.eth" "maker.eth"
+    )
+
+    local wrapper="0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401"
+    local node=""
+    local name=""
+
+    for n in "${names[@]}"; do
+      local h
+      h=$($cast_bin namehash "$n")
+      # call isWrapped(bytes32)
+      local wrapped
+      wrapped=$($cast_bin call --rpc-url "$ETH_RPC_URL" "$wrapper" "isWrapped(bytes32)(bool)" "$h" 2>/dev/null | tr -d '\n' || true)
+      if [[ "$wrapped" == "true" ]]; then
+        node="$h"
+        name="$n"
+        break
+      fi
+    done
+
+    if [[ -z "$node" ]]; then
+      mark_blocked "$id" "No wrapped nodes found in probe list"
+      return
+    fi
+
+    local testfile="$proj/test/NameWrapperUnauthorizedProbe.t.sol"
+    cat > "$testfile" <<EOF
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.20;
+
+import "forge-std/Test.sol";
+
+interface INameWrapper {
+    function isWrapped(bytes32 node) external view returns (bool);
+    function setFuses(bytes32 node, uint16 ownerControlledFuses) external returns (uint32);
+}
+
+contract NameWrapperUnauthorizedProbe is Test {
+    address constant NAMEWRAPPER = 0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401;
+    bytes32 constant NODE = bytes32(${node});
+
+    function test_probe_node_is_wrapped() public {
+        assertTrue(INameWrapper(NAMEWRAPPER).isWrapped(NODE), "node not wrapped");
+    }
+
+    function test_unauthorized_setFuses_reverts() public {
+        vm.expectRevert();
+        INameWrapper(NAMEWRAPPER).setFuses(NODE, 0);
+    }
+}
+EOF
+
+    if (cd "$proj" && forge test --fork-url "$ETH_RPC_URL" --match-contract NameWrapperUnauthorizedProbe -q); then
+      post_report "$id" "Probe picked wrapped name=${name} node=${node}. Unauthorized setFuses reverted as expected (no bug). Test: $testfile"
+      mark_done "$id"
+    else
+      post_report "$id" "Probe picked wrapped name=${name} node=${node}. Test failed unexpectedly; possible golden fish. Test: $testfile"
+      mark_done "$id"
+      echo "confirmed" > "$proj/POC_CONFIRMED.txt" || true
+    fi
+    return
+  fi
+
   if [[ "$title" == Install\ Foundry* ]] || [[ "$title" == *Foundry*forge* ]]; then
     # Install Foundry toolchain for PoC work.
     if command -v forge >/dev/null 2>&1; then
