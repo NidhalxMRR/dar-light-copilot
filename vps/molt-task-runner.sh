@@ -92,8 +92,10 @@ handle_task() {
       git clone -q https://github.com/ensdomains/ens-contracts "$dest"
     fi
     local files
-    files=$(find "$dest" -maxdepth 2 -type f -name '*.sol' | wc -l | tr -d ' ')
-    post_report "$id" "Cloned ens-contracts to $dest. Solidity files: $files. Next: identify Registry/Registrar/Controller/Resolver/Wrapper entrypoints."
+    files=$(find "$dest" -maxdepth 6 -type f -name '*.sol' | wc -l | tr -d ' ')
+    local top
+    top=$(find "$dest/contracts" -maxdepth 2 -type f -name '*.sol' | head -n 12 | sed 's#^'$dest'/##' | tr '\n' '; ')
+    post_report "$id" "Cloned ens-contracts to $dest. Solidity files: $files. Sample: ${top}. Next: identify Registry/Registrar/Controller/Resolver/Wrapper entrypoints."
     mark_done "$id"
     return
   fi
