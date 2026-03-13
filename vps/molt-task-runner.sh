@@ -730,7 +730,7 @@ EOF
     return
   fi
 
-  if [[ "$title" == ENS\ Web\ Search\+\+*wagmi/viem*tx-building* ]]; then
+  if [[ "$title" == ENS\ Web\ Search\+\+* ]] ; then
     local app_repo="/home/ubuntu/.openclaw/workspace/targets/ens-app-v3"
     if [[ ! -d "$app_repo/.git" ]]; then
       git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
