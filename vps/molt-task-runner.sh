@@ -31,7 +31,23 @@ psqlq() {
 
 claim_task_id() {
   # Returns claimed id or empty.
-  psqlq "SELECT (orchestration_claim_task('${AGENT_ID}', ${LEASE_SECONDS})).id;" 2>/dev/null | head -n1 | tr -d '[:space:]' | grep -E '^[0-9]+$' || true
+  # NOTE: we only execute tasks owned by "aluma" (executor lane). Coordinator tasks are skipped.
+  local id
+  id=$(psqlq "SELECT (orchestration_claim_task('${AGENT_ID}', ${LEASE_SECONDS})).id;" 2>/dev/null | head -n1 | tr -d '[:space:]' | grep -E '^[0-9]+$' || true)
+  if [[ -z "${id:-}" ]]; then
+    return 0
+  fi
+
+  local owner
+  owner=$(psqlq "SELECT owner FROM orchestration_task WHERE id=${id};" | tr -d '[:space:]' || true)
+  if [[ "${owner:-}" != "aluma" ]]; then
+    # Release claim and skip.
+    psqlq "UPDATE orchestration_task SET status='queued', claimed_by='', claimed_at=NULL, lease_expires_at=NULL, updated_at=now() WHERE id=${id} AND claimed_by='${AGENT_ID}';" >/dev/null 2>&1 || true
+    echo ""
+    return 0
+  fi
+
+  echo "$id"
 }
 
 post_report() {
