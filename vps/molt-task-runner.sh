@@ -241,6 +241,36 @@ EOF
     return
   fi
 
+  if [[ "$title" == ENS\ web/app\ triage*high-EV* ]] || [[ "$title" == ENS\ web/app\ triage* ]] || [[ "$title" == ENS:*web/app*triage* ]]; then
+    # Manual triage using local repos if present; otherwise pull the scope repos.
+    local base="/home/ubuntu/.openclaw/workspace/targets"
+    mkdir -p "$base"
+
+    # Try to ensure repos exist
+    local app_repo="$base/ens-app-v3"
+    local meta_repo="$base/metadata-service"
+
+    if [[ ! -d "$app_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/ens-app-v3 "$app_repo" || true
+    fi
+    if [[ ! -d "$meta_repo/.git" ]]; then
+      git clone -q https://github.com/ensdomains/metadata-service "$meta_repo" || true
+    fi
+
+    # Heuristic: look for wallet tx building + record update flows
+    local hits
+    hits=$( (rg -n "sendTransaction|eth_sendTransaction|wallet|connector|wagmi|viem|ethers" "$app_repo" 2>/dev/null || true; \
+            rg -n "setAddr|setText|setContenthash|setResolver|setOwner" "$app_repo" 2>/dev/null || true) | head -n 60 )
+
+    local hits2
+    hits2=$( (rg -n "metadata|image|animation_url|description|name" "$meta_repo" 2>/dev/null || true; \
+              rg -n "sanitize|escape|html|script|xss" "$meta_repo" 2>/dev/null || true) | head -n 40 )
+
+    post_report "$id" "Web/App triage quick hits:\n[ens-app-v3]\n${hits}\n\n[metadata-service]\n${hits2}\n\nHypotheses to pursue: (1) state-modifying authenticated action via request tampering; (2) wallet-tx parameter substitution in app flow; (3) metadata HTML injection → wallet interaction/XSS (per scope)."
+    mark_done "$id"
+    return
+  fi
+
   if [[ "$title" == Install\ Foundry* ]] || [[ "$title" == *Foundry*forge* ]]; then
     # Install Foundry toolchain for PoC work.
     if command -v forge >/dev/null 2>&1; then
