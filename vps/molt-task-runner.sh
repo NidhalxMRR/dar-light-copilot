@@ -14,6 +14,9 @@ set -euo pipefail
 AGENT_ID="aluma:worker"
 LEASE_SECONDS="600"
 
+# Ensure Foundry is on PATH for non-interactive runs
+export PATH="$HOME/.foundry/bin:$PATH"
+
 send_tg() {
   local text="$1"
   curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
