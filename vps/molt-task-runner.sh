@@ -121,6 +121,38 @@ handle_task() {
     return
   fi
 
+  if [[ "$title" == Install\ Foundry* ]] || [[ "$title" == *Foundry*forge* ]]; then
+    # Install Foundry toolchain for PoC work.
+    if command -v forge >/dev/null 2>&1; then
+      post_report "$id" "Foundry already installed: $(forge --version 2>/dev/null | head -n1)"
+      mark_done "$id"
+      return
+    fi
+
+    # Install dependencies if missing
+    command -v curl >/dev/null 2>&1 || sudo apt-get update -y && sudo apt-get install -y curl
+
+    # Install foundryup
+    curl -fsSL https://foundry.paradigm.xyz | bash
+
+    # shellcheck disable=SC1090
+    if [ -f "$HOME/.bashrc" ]; then
+      # ensure PATH for this run
+      export PATH="$HOME/.foundry/bin:$PATH"
+    fi
+
+    "$HOME/.foundry/bin/foundryup"
+
+    if command -v forge >/dev/null 2>&1; then
+      post_report "$id" "Installed Foundry OK: $(forge --version 2>/dev/null | head -n1)"
+      mark_done "$id"
+      return
+    fi
+
+    mark_blocked "$id" "Foundry install attempted but forge still missing"
+    return
+  fi
+
   mark_blocked "$id" "Unknown task title; runner has no handler: $title"
 }
 
